@@ -2,9 +2,12 @@ from abc import ABCMeta, abstractmethod
 from typing import NamedTuple, List, Callable, Any
 
 import numpy
-from become_yukarin import Vocoder
-from become_yukarin import VoiceChanger
-from become_yukarin.data_struct import AcousticFeature, Wave
+from yukarin.acoustic_feature import AcousticFeature
+from yukarin.wave import Wave
+
+from .yukarin_wrapper.vocoder import Vocoder
+from .yukarin_wrapper.voice_changer import AcousticFeatureWrapper
+from .yukarin_wrapper.voice_changer import VoiceChanger
 
 
 class BaseSegment(ABCMeta):
@@ -24,6 +27,20 @@ class BaseSegment(ABCMeta):
 class FeatureSegment(NamedTuple, BaseSegment):
     start_time: float
     feature: AcousticFeature
+    frame_period: float
+
+    @property
+    def time_length(self):
+        return len(self.feature.f0) * self.frame_period / 1000
+
+    @property
+    def end_time(self):
+        return self.time_length + self.start_time
+
+
+class FeatureWrapperSegment(NamedTuple, BaseSegment):
+    start_time: float
+    feature: AcousticFeatureWrapper
     frame_period: float
 
     @property
@@ -63,9 +80,9 @@ class VoiceChangerStream(object):
 
         self.voice_changer: VoiceChanger = None
         self.vocoder: Vocoder = None
-        self._data_stream = []  # type: List[WaveSegment]
-        self._in_feature_stream = []  # type: List[FeatureSegment]
-        self._out_feature_stream = []  # type: List[FeatureSegment]
+        self._data_stream: List[WaveSegment] = []
+        self._in_feature_stream: List[FeatureWrapperSegment] = []
+        self._out_feature_stream: List[FeatureSegment] = []
 
     def add_wave(self, start_time: float, wave: Wave):
         # validation
@@ -75,12 +92,12 @@ class VoiceChangerStream(object):
         segment = WaveSegment(start_time=start_time, wave=wave)
         self._data_stream.append(segment)
 
-    def add_in_feature(self, start_time: float, feature: AcousticFeature, frame_period: float):
+    def add_in_feature(self, start_time: float, feature_wrapper: AcousticFeatureWrapper, frame_period: float):
         # validation
         assert frame_period == self.frame_period
-        assert feature.f0.dtype == self.in_dtype
+        assert feature_wrapper.f0.dtype == self.in_dtype
 
-        segment = FeatureSegment(start_time=start_time, feature=feature, frame_period=self.frame_period)
+        segment = FeatureWrapperSegment(start_time=start_time, feature=feature_wrapper, frame_period=self.frame_period)
         self._in_feature_stream.append(segment)
 
     def add_out_feature(self, start_time: float, feature: AcousticFeature, frame_period: float):
@@ -118,9 +135,10 @@ class VoiceChangerStream(object):
         for segment in stream:
             # padding
             if segment.start_time > start_time_buffer:
-                length = int((segment.start_time - start_time_buffer) * rate)
+                length = round((segment.start_time - start_time_buffer) * rate)
                 pad = pad_function(length)
                 buffer_list.append(pad)
+                remaining_time -= segment.start_time - start_time_buffer
                 start_time_buffer = segment.start_time
 
             if remaining_time > segment.end_time - start_time_buffer:
@@ -128,8 +146,8 @@ class VoiceChangerStream(object):
             else:
                 one_time_length = remaining_time
 
-            first_index = int((start_time_buffer - segment.start_time) * rate)
-            last_index = int(first_index + one_time_length * rate)
+            first_index = round((start_time_buffer - segment.start_time) * rate)
+            last_index = round(first_index + one_time_length * rate)
             one_buffer = pick_function(segment, first_index, last_index)
             buffer_list.append(one_buffer)
 
@@ -140,7 +158,7 @@ class VoiceChangerStream(object):
                 break
         else:
             # last padding
-            length = int((end_time - start_time_buffer) * rate)
+            length = round((end_time - start_time_buffer) * rate)
             pad = pad_function(length)
             buffer_list.append(pad)
 
@@ -148,6 +166,7 @@ class VoiceChangerStream(object):
         return buffer
 
     def pre_convert(self, start_time: float, time_length: float, extra_time: float):
+        keys = ['f0', 'ap', 'mc', 'voiced']
         wave = self.fetch(
             start_time=start_time,
             time_length=time_length,
@@ -161,45 +180,73 @@ class VoiceChangerStream(object):
         in_wave = Wave(wave=wave, sampling_rate=self.sampling_rate)
         in_feature = self.vocoder.encode(in_wave)
 
-        pad = int(extra_time / (self.vocoder.acoustic_feature_param.frame_period / 1000))
-        in_feature = in_feature.pick(pad, -pad)
-        return in_feature
+        pad = round(extra_time * self.sampling_rate)
+        in_wave.wave = in_wave.wave[pad:-pad]
+
+        pad = round(extra_time / (self.vocoder.acoustic_param.frame_period / 1000))
+        in_feature = in_feature.pick(pad, -pad, keys=keys)
+
+        feature_wrapper = AcousticFeatureWrapper(wave=in_wave, **in_feature.__dict__)
+        return feature_wrapper
 
     def convert(self, start_time: float, time_length: float, extra_time: float):
         sizes = AcousticFeature.get_sizes(sampling_rate=self.sampling_rate, order=self.order)
-        keys = ['f0', 'aperiodicity', 'mfcc', 'voiced']
+        keys = ['f0', 'ap', 'mc', 'voiced']
+
+        def _pad_function(length):
+            return AcousticFeatureWrapper.silent_wrapper(
+                length,
+                sizes=sizes,
+                keys=keys,
+                frame_period=self.frame_period,
+                sampling_rate=self.sampling_rate,
+                wave_dtype=self.in_dtype,
+            ).astype_only_float_wrapper(self.in_dtype)
+
+        def _pick_function(segment: FeatureWrapperSegment, first, last):
+            return segment.feature.pick_wrapper(
+                first,
+                last,
+                keys=keys,
+                frame_period=self.frame_period,
+            )
+
         in_feature = self.fetch(
             start_time=start_time,
             time_length=time_length,
             extra_time=extra_time,
             data_stream=self._in_feature_stream,
             rate=1000 / self.frame_period,
-            pad_function=lambda length: AcousticFeature.silent(length, sizes=sizes, keys=keys),
-            pick_function=lambda segment, first, last: segment.feature.pick(first, last),
-            concat_function=lambda buffers: AcousticFeature.concatenate(buffers, keys=keys),
+            pad_function=_pad_function,
+            pick_function=_pick_function,
+            concat_function=lambda buffers: AcousticFeatureWrapper.concatenate_wrapper(buffers, keys=keys),
         )
         out_feature = self.voice_changer.convert_from_acoustic_feature(in_feature)
 
-        pad = int(extra_time * 1000 / self.frame_period)
-        out_feature = out_feature.pick(pad, -pad)
+        pad = round(extra_time * 1000 / self.frame_period)
+        out_feature = out_feature.pick(pad, -pad, keys=['f0', 'ap', 'sp', 'voiced'])
         return out_feature
 
     def post_convert(self, start_time: float, time_length: float):
         sizes = AcousticFeature.get_sizes(sampling_rate=self.sampling_rate, order=self.order)
-        keys = ['f0', 'aperiodicity', 'spectrogram', 'voiced']
+        keys = ['f0', 'ap', 'sp', 'voiced']
         out_feature = self.fetch(
             start_time=start_time,
             time_length=time_length,
             data_stream=self._out_feature_stream,
             rate=1000 / self.frame_period,
             pad_function=lambda length: AcousticFeature.silent(length, sizes=sizes, keys=keys),
-            pick_function=lambda segment, first, last: segment.feature.pick(first, last),
+            pick_function=lambda segment, first, last: segment.feature.pick(first, last, keys=keys),
             concat_function=lambda buffers: AcousticFeature.concatenate(buffers, keys=keys),
         )
 
         out_wave = self.vocoder.decode(
             acoustic_feature=out_feature,
         )
+
+        w = out_wave.wave
+        w[numpy.isnan(w)] = 0
+        out_wave = Wave(wave=w, sampling_rate=out_wave.sampling_rate)
         return out_wave
 
 

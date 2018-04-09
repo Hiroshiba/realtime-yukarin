@@ -1,22 +1,23 @@
 import world4py
-world4py._WORLD_LIBRARY_PATH = 'x64_world.dll'
 
+world4py._WORLD_LIBRARY_PATH = 'x64_world.dll'
 
 from pathlib import Path
 from typing import NamedTuple
 
 import librosa
 import numpy
-
-from become_yukarin import AcousticConverter
-from become_yukarin import RealtimeVocoder
+from realtime_voice_conversion.yukarin_wrapper.vocoder import RealtimeVocoder
 from become_yukarin import SuperResolution
-from become_yukarin import VoiceChanger
-from become_yukarin.config.config import create_from_json as create_config
 from become_yukarin.config.sr_config import create_from_json as create_sr_config
-from become_yukarin.data_struct import Wave
-from become_yukarin.voice_changer import VoiceChangerStream
-from become_yukarin.voice_changer import VoiceChangerStreamWrapper
+from yukarin import AcousticConverter
+from yukarin.config import create_from_json as create_config
+from yukarin.wave import Wave
+from yukarin.f0_converter import F0Converter
+
+from realtime_voice_conversion.voice_changer_stream import VoiceChangerStream
+from realtime_voice_conversion.voice_changer_stream import VoiceChangerStreamWrapper
+from realtime_voice_conversion.yukarin_wrapper.voice_changer import VoiceChanger
 
 
 class AudioConfig(NamedTuple):
@@ -26,16 +27,20 @@ class AudioConfig(NamedTuple):
     out_norm: float
 
 
-model_base_path = Path('~/Github/become-yukarin/trained/').expanduser()
+model_base_path = Path('./trained/').expanduser()
 test_data_path = Path('tests/test-deep-learning-yuduki-yukari.wav')
 test_output_path = Path('output.wav')
+input_statistics_path = model_base_path / 'f0_statistics/hiho_f0stat.npy'
+target_statistics_path = model_base_path / 'f0_statistics/yukari_f0stat.npy'
 
 print('model loading...', flush=True)
 
-model_path = model_base_path / Path('pp-weakD-innoise01-tarnoise001/predictor_120000.npz')
-config_path = model_base_path / Path('pp-weakD-innoise01-tarnoise001/config.json')
+f0_converter = F0Converter(input_statistics=input_statistics_path, target_statistics=target_statistics_path)
+
+model_path = model_base_path / Path('pp-el8-wof0/predictor_2260000.npz')
+config_path = model_base_path / Path('pp-el8-wof0/config.json')
 config = create_config(config_path)
-acoustic_converter = AcousticConverter(config, model_path)
+acoustic_converter = AcousticConverter(config, model_path, f0_converter=f0_converter)
 print('model 1 loaded!', flush=True)
 
 model_path = model_base_path / Path('sr-noise3/predictor_180000.npz')
@@ -45,15 +50,15 @@ super_resolution = SuperResolution(sr_config, model_path)
 print('model 2 loaded!', flush=True)
 
 audio_config = AudioConfig(
-    rate=config.dataset.param.voice_param.sample_rate,
-    chunk=config.dataset.param.voice_param.sample_rate,
-    vocoder_buffer_size=config.dataset.param.voice_param.sample_rate // 16,
+    rate=config.dataset.acoustic_param.sampling_rate,
+    chunk=config.dataset.acoustic_param.sampling_rate,
+    vocoder_buffer_size=config.dataset.acoustic_param.sampling_rate // 16,
     out_norm=4.5,
 )
-frame_period = config.dataset.param.acoustic_feature_param.frame_period
+frame_period = config.dataset.acoustic_param.frame_period
 
 vocoder = RealtimeVocoder(
-    acoustic_feature_param=config.dataset.param.acoustic_feature_param,
+    acoustic_param=config.dataset.acoustic_param,
     out_sampling_rate=audio_config.rate,
     buffer_size=audio_config.vocoder_buffer_size,
     number_of_pointers=16,
@@ -66,8 +71,8 @@ voice_changer = VoiceChanger(
 
 voice_changer_stream = VoiceChangerStream(
     sampling_rate=audio_config.rate,
-    frame_period=acoustic_converter._param.acoustic_feature_param.frame_period,
-    order=acoustic_converter._param.acoustic_feature_param.order,
+    frame_period=acoustic_converter._param.frame_period,
+    order=acoustic_converter._param.order,
     in_dtype=numpy.float32,
 )
 
@@ -76,8 +81,8 @@ voice_changer_stream.vocoder = vocoder
 
 wrapper = VoiceChangerStreamWrapper(
     voice_changer_stream=voice_changer_stream,
-    extra_time_pre=1,
-    extra_time=0.2,
+    extra_time_pre=0.2,
+    extra_time=0.1,
 )
 
 raw_wave, _ = librosa.load(str(test_data_path), sr=audio_config.rate)
@@ -92,7 +97,11 @@ for i in range(0, len(raw_wave), audio_config.chunk):
 start_time = 0
 for i in range(len(raw_wave) // audio_config.chunk + 1):
     feature_in = wrapper.pre_convert_next(time_length=audio_config.chunk / audio_config.rate)
-    wrapper.voice_changer_stream.add_in_feature(start_time=start_time, feature=feature_in, frame_period=frame_period)
+    wrapper.voice_changer_stream.add_in_feature(
+        start_time=start_time,
+        feature_wrapper=feature_in,
+        frame_period=frame_period,
+    )
     start_time += audio_config.chunk / audio_config.rate
     print('pre', i, flush=True)
 
