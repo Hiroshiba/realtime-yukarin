@@ -1,28 +1,32 @@
-import world4py
-
-world4py._WORLD_LIBRARY_PATH = 'x64_world.dll'
-
+import queue
+import signal
+import sys
 from multiprocessing import Process
 from multiprocessing import Queue
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, List
 
 import librosa
 import numpy
 import pyaudio
+import pynput
+import world4py
+
+world4py._WORLD_LIBRARY_PATH = 'x64_world.dll'
+
 from become_yukarin import SuperResolution
 from become_yukarin.config.sr_config import create_from_json as create_sr_config
 from yukarin import AcousticConverter
 from yukarin.acoustic_feature import AcousticFeature
 from yukarin.config import Config
 from yukarin.config import create_from_json as create_config
-from yukarin.wave import Wave
 from yukarin.f0_converter import F0Converter
+from yukarin.wave import Wave
 
 from realtime_voice_conversion.voice_changer_stream import VoiceChangerStream
 from realtime_voice_conversion.voice_changer_stream import VoiceChangerStreamWrapper
-from realtime_voice_conversion.yukarin_wrapper.vocoder import Vocoder
 from realtime_voice_conversion.yukarin_wrapper.vocoder import RealtimeVocoder
+from realtime_voice_conversion.yukarin_wrapper.vocoder import Vocoder
 from realtime_voice_conversion.yukarin_wrapper.voice_changer import AcousticFeatureWrapper
 from realtime_voice_conversion.yukarin_wrapper.voice_changer import VoiceChanger
 
@@ -36,6 +40,20 @@ class AudioConfig(NamedTuple):
     in_norm: float
     out_norm: float
     silent_threshold: float
+
+
+class Item(object):
+    def __init__(
+            self,
+            original: numpy.ndarray,
+            item: any,
+            index: int,
+            conversion_flag: bool,
+    ):
+        self.original = original
+        self.item = item
+        self.index = index
+        self.conversion_flag = conversion_flag
 
 
 def encode_worker(
@@ -53,20 +71,24 @@ def encode_worker(
     start_time = 0
     time_length = audio_config.convert_chunk / audio_config.rate
 
-    z = numpy.zeros(round(time_length * audio_config.rate), dtype=numpy.float32)
-    w = Wave(wave=z, sampling_rate=audio_config.rate)
+    # padding 1s
+    prev_original = numpy.zeros(round(time_length * audio_config.rate), dtype=numpy.float32)
+    w = Wave(wave=prev_original, sampling_rate=audio_config.rate)
     wrapper.voice_changer_stream.add_wave(start_time=start_time, wave=w)
     start_time += time_length
 
     while True:
-        wave = queue_input.get()
+        item: Item = queue_input.get()
+        item.original, prev_original = prev_original, item.original
+        wave = item.item
 
         w = Wave(wave=wave, sampling_rate=audio_config.rate)
         wrapper.voice_changer_stream.add_wave(start_time=start_time, wave=w)
         start_time += time_length
 
         feature_wrapper = wrapper.pre_convert_next(time_length=time_length)
-        queue_output.put(feature_wrapper)
+        item.item = feature_wrapper
+        queue_output.put(item)
 
 
 def convert_worker(
@@ -86,7 +108,8 @@ def convert_worker(
     start_time = 0
     time_length = audio_config.convert_chunk / audio_config.rate
     while True:
-        in_feature: AcousticFeatureWrapper = queue_input.get()
+        item: Item = queue_input.get()
+        in_feature: AcousticFeatureWrapper = item.item
         wrapper.voice_changer_stream.add_in_feature(
             start_time=start_time,
             feature_wrapper=in_feature,
@@ -95,7 +118,8 @@ def convert_worker(
         start_time += time_length
 
         out_feature = wrapper.convert_next(time_length=time_length)
-        queue_output.put(out_feature)
+        item.item = out_feature
+        queue_output.put(item)
 
 
 def decode_worker(
@@ -116,7 +140,8 @@ def decode_worker(
     time_length = audio_config.convert_chunk / audio_config.rate
     wave_fragment = numpy.empty(0)
     while True:
-        feature: AcousticFeature = queue_input.get()
+        item: Item = queue_input.get()
+        feature: AcousticFeature = item.item
         wrapper.voice_changer_stream.add_out_feature(
             start_time=start_time,
             feature=feature,
@@ -131,8 +156,13 @@ def decode_worker(
             wave, wave_fragment = wave_fragment[:audio_config.audio_chunk], wave_fragment[audio_config.audio_chunk:]
 
             power = librosa.core.power_to_db(numpy.abs(librosa.stft(wave)) ** 2).mean()
-            if power >= audio_config.silent_threshold:
-                queue_output.put(wave)
+            if power < audio_config.silent_threshold:
+                wave = None  # pass
+        else:
+            wave = None
+
+        item.item = wave
+        queue_output.put(item)
 
 
 def main():
@@ -170,6 +200,8 @@ def main():
         out_norm=4.0,
         silent_threshold=-80.0,
     )
+
+    conversion_flag = True
 
     voice_changer_stream = VoiceChangerStream(
         sampling_rate=audio_config.rate,
@@ -222,11 +254,39 @@ def main():
         output=True,
     )
 
+    # signal
+    def signal_handler(*args, **kwargs):
+        process_encoder.terminate()
+        process_converter.terminate()
+        process_decoder.terminate()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+
+    # key event
+    def key_handler(key):
+        nonlocal conversion_flag
+        if key == pynput.keyboard.Key.space:  # switch
+            conversion_flag = not conversion_flag
+
+    key_listener = pynput.keyboard.Listener(on_press=key_handler)
+    key_listener.start()
+
+    index_input = 0
+    index_output = 0
     while True:
         # input audio
         in_data = audio_stream.read(audio_config.audio_chunk)
         wave = numpy.fromstring(in_data, dtype=numpy.float32) * audio_config.in_norm
-        queue_input_wave.put(wave)
+
+        item = Item(
+            original=wave * 5,
+            item=wave,
+            index=index_input,
+            conversion_flag=conversion_flag,
+        )
+        queue_input_wave.put(item)
+        index_input += 1
 
         print('queue_input_wave', queue_input_wave.qsize(), flush=True)
         print('queue_input_feature', queue_input_feature.qsize(), flush=True)
@@ -234,19 +294,35 @@ def main():
         print('queue_output_wave', queue_output_wave.qsize(), flush=True)
 
         # output
-        try:
-            wave = queue_output_wave.get_nowait()
-        except:
-            wave = None
+        wave: numpy.ndarray = None
+        popped_list: List[Item] = []
+
+        while True:
+            try:
+                while True:
+                    item: Item = queue_output_wave.get_nowait()
+                    popped_list.append(item)
+            except queue.Empty:
+                pass
+
+            print('index_output', index_output)
+            item = next(filter(lambda ii: ii.index == index_output, popped_list), None)
+            if item is None:
+                break
+
+            popped_list.remove(item)
+
+            index_output += 1
+            if item.item is None:
+                continue
+
+            wave = item.item if item.conversion_flag else item.original
+            break
 
         if wave is not None:
             wave *= audio_config.out_norm
             b = wave.astype(numpy.float32).tobytes()
             audio_stream.write(b)
-
-    # process_encoder.terminate()
-    # process_converter.terminate()
-    # process_decoder.terminate()
 
 
 if __name__ == '__main__':
