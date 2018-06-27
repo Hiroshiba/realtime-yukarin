@@ -68,12 +68,12 @@ class WaveSegment(NamedTuple, BaseSegment):
 class VoiceChangerStream(object):
     def __init__(
             self,
-            sampling_rate: int,
+            in_sampling_rate: int,
             frame_period: float,
             order: int,
             in_dtype=numpy.float32,
     ):
-        self.sampling_rate = sampling_rate
+        self.in_sampling_rate = in_sampling_rate
         self.frame_period = frame_period
         self.order = order
         self.in_dtype = in_dtype
@@ -86,7 +86,7 @@ class VoiceChangerStream(object):
 
     def add_wave(self, start_time: float, wave: Wave):
         # validation
-        assert wave.sampling_rate == self.sampling_rate
+        assert wave.sampling_rate == self.in_sampling_rate
         assert wave.wave.dtype == self.in_dtype
 
         segment = WaveSegment(start_time=start_time, wave=wave)
@@ -172,15 +172,15 @@ class VoiceChangerStream(object):
             time_length=time_length,
             extra_time=extra_time,
             data_stream=self._data_stream,
-            rate=self.sampling_rate,
+            rate=self.in_sampling_rate,
             pad_function=lambda length: numpy.zeros(shape=length, dtype=self.in_dtype),
             pick_function=lambda segment, first, last: segment.wave.wave[first:last],
             concat_function=numpy.concatenate,
         )
-        in_wave = Wave(wave=wave, sampling_rate=self.sampling_rate)
+        in_wave = Wave(wave=wave, sampling_rate=self.in_sampling_rate)
         in_feature = self.vocoder.encode(in_wave)
 
-        pad = round(extra_time * self.sampling_rate)
+        pad = round(extra_time * self.in_sampling_rate)
         in_wave.wave = in_wave.wave[pad:-pad]
 
         pad = round(extra_time / (self.vocoder.acoustic_param.frame_period / 1000))
@@ -190,7 +190,7 @@ class VoiceChangerStream(object):
         return feature_wrapper
 
     def convert(self, start_time: float, time_length: float, extra_time: float):
-        sizes = AcousticFeature.get_sizes(sampling_rate=self.sampling_rate, order=self.order)
+        sizes = AcousticFeature.get_sizes(sampling_rate=self.in_sampling_rate, order=self.order)
         keys = ['f0', 'ap', 'mc', 'voiced']
 
         def _pad_function(length):
@@ -199,7 +199,7 @@ class VoiceChangerStream(object):
                 sizes=sizes,
                 keys=keys,
                 frame_period=self.frame_period,
-                sampling_rate=self.sampling_rate,
+                sampling_rate=self.in_sampling_rate,
                 wave_dtype=self.in_dtype,
             ).astype_only_float_wrapper(self.in_dtype)
 
@@ -228,7 +228,8 @@ class VoiceChangerStream(object):
         return out_feature
 
     def post_convert(self, start_time: float, time_length: float):
-        sizes = AcousticFeature.get_sizes(sampling_rate=self.sampling_rate, order=self.order)
+        # should use out_sampling_rate
+        sizes = AcousticFeature.get_sizes(sampling_rate=self.in_sampling_rate, order=self.order)
         keys = ['f0', 'ap', 'sp', 'voiced']
         out_feature = self.fetch(
             start_time=start_time,

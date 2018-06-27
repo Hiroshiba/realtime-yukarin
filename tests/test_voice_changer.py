@@ -21,7 +21,8 @@ from realtime_voice_conversion.yukarin_wrapper.voice_changer import VoiceChanger
 
 
 class AudioConfig(NamedTuple):
-    rate: int
+    in_rate: int
+    out_rate: int
     chunk: int
     vocoder_buffer_size: int
     out_norm: float
@@ -37,10 +38,16 @@ print('model loading...', flush=True)
 
 f0_converter = F0Converter(input_statistics=input_statistics_path, target_statistics=target_statistics_path)
 
-model_path = model_base_path / Path('pp-el8-wof0/predictor_2260000.npz')
-config_path = model_base_path / Path('pp-el8-wof0/config.json')
+model_path = Path('./trained/multi-16k-ref24k-el8-woD-gbc8/predictor_2910000.npz')
+config_path = Path('./trained/multi-16k-ref24k-el8-woD-gbc8/config.json')
 config = create_config(config_path)
-acoustic_converter = AcousticConverter(config, model_path, f0_converter=f0_converter)
+acoustic_converter = AcousticConverter(
+    config,
+    model_path,
+    gpu=0,
+    f0_converter=f0_converter,
+    out_sampling_rate=24000,
+)
 print('model 1 loaded!', flush=True)
 
 model_path = model_base_path / Path('sr-noise3/predictor_180000.npz')
@@ -50,7 +57,8 @@ super_resolution = SuperResolution(sr_config, model_path)
 print('model 2 loaded!', flush=True)
 
 audio_config = AudioConfig(
-    rate=config.dataset.acoustic_param.sampling_rate,
+    in_rate=config.dataset.acoustic_param.sampling_rate,
+    out_rate=24000,
     chunk=config.dataset.acoustic_param.sampling_rate,
     vocoder_buffer_size=config.dataset.acoustic_param.sampling_rate // 16,
     out_norm=4.5,
@@ -59,7 +67,7 @@ frame_period = config.dataset.acoustic_param.frame_period
 
 vocoder = RealtimeVocoder(
     acoustic_param=config.dataset.acoustic_param,
-    out_sampling_rate=audio_config.rate,
+    out_sampling_rate=audio_config.out_rate,
     buffer_size=audio_config.vocoder_buffer_size,
     number_of_pointers=16,
 )
@@ -70,9 +78,9 @@ voice_changer = VoiceChanger(
 )
 
 voice_changer_stream = VoiceChangerStream(
-    sampling_rate=audio_config.rate,
-    frame_period=acoustic_converter._param.frame_period,
-    order=acoustic_converter._param.order,
+    in_sampling_rate=audio_config.in_rate,
+    frame_period=config.dataset.acoustic_param.frame_period,
+    order=config.dataset.acoustic_param.order,
     in_dtype=numpy.float32,
 )
 
@@ -85,39 +93,39 @@ wrapper = VoiceChangerStreamWrapper(
     extra_time=0.1,
 )
 
-raw_wave, _ = librosa.load(str(test_data_path), sr=audio_config.rate)
+raw_wave, _ = librosa.load(str(test_data_path), sr=audio_config.in_rate)
 wave_out_list = []
 
 start_time = 0
 for i in range(0, len(raw_wave), audio_config.chunk):
-    wave_in = Wave(wave=raw_wave[i:i + audio_config.chunk], sampling_rate=audio_config.rate)
+    wave_in = Wave(wave=raw_wave[i:i + audio_config.chunk], sampling_rate=audio_config.in_rate)
     wrapper.voice_changer_stream.add_wave(start_time=start_time, wave=wave_in)
     start_time += len(wave_in.wave) / wave_in.sampling_rate
 
 start_time = 0
 for i in range(len(raw_wave) // audio_config.chunk + 1):
-    feature_in = wrapper.pre_convert_next(time_length=audio_config.chunk / audio_config.rate)
+    feature_in = wrapper.pre_convert_next(time_length=audio_config.chunk / audio_config.in_rate)
     wrapper.voice_changer_stream.add_in_feature(
         start_time=start_time,
         feature_wrapper=feature_in,
         frame_period=frame_period,
     )
-    start_time += audio_config.chunk / audio_config.rate
+    start_time += audio_config.chunk / audio_config.in_rate
     print('pre', i, flush=True)
 
 start_time = 0
 for i in range(len(raw_wave) // audio_config.chunk + 1):
-    feature_out = wrapper.convert_next(time_length=audio_config.chunk / audio_config.rate)
+    feature_out = wrapper.convert_next(time_length=audio_config.chunk / audio_config.in_rate)
     wrapper.voice_changer_stream.add_out_feature(start_time=start_time, feature=feature_out, frame_period=frame_period)
-    start_time += audio_config.chunk / audio_config.rate
+    start_time += audio_config.chunk / audio_config.in_rate
     print('cent', i, flush=True)
 
 start_time = 0
 for i in range(len(raw_wave) // audio_config.chunk + 1):
-    wave_out = wrapper.post_convert_next(time_length=audio_config.chunk / audio_config.rate)
+    wave_out = wrapper.post_convert_next(time_length=audio_config.chunk / audio_config.out_rate)
     wave_out_list.append(wave_out)
-    start_time += audio_config.chunk / audio_config.rate
+    start_time += audio_config.chunk / audio_config.out_rate
     print('post', i, flush=True)
 
 out_wave = numpy.concatenate([w.wave for w in wave_out_list]).astype(numpy.float32)
-librosa.output.write_wav(str(test_output_path), out_wave, sr=audio_config.rate)
+librosa.output.write_wav(str(test_output_path), out_wave, sr=audio_config.out_rate)
