@@ -12,6 +12,7 @@ import pyaudio
 import pynput
 import world4py
 import argparse
+import chainer
 
 world4py._WORLD_LIBRARY_PATH = 'x64_world.dll'
 
@@ -170,10 +171,14 @@ def decode_worker(
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('-idn', '--input_device_name')
     parser.add_argument('-odn', '--output_device_name')
     args = parser.parse_args()
 
     print('model loading...', flush=True)
+
+    chainer.global_config.enable_backprop = False
+    chainer.global_config.train = False
 
     queue_input_wave = Queue()
     queue_input_feature = Queue()
@@ -270,6 +275,20 @@ def main():
     ))
     process_decoder.start()
 
+    # input device
+    name = args.input_device_name
+    if name is None:
+        input_device_index = audio_instance.get_default_input_device_info()['index']
+
+    else:
+        for i in range(audio_instance.get_device_count()):
+            if name in str(audio_instance.get_device_info_by_index(i)['name']):
+                input_device_index = i
+                break
+        else:
+            print('input device not found')
+            exit(1)
+
     # output device
     name = args.output_device_name
     if name is None:
@@ -281,17 +300,17 @@ def main():
                 output_device_index = i
                 break
         else:
-            print('device not found')
+            print('output device not found')
             exit(1)
 
     # audio stream
-    print('output_device_index', output_device_index)
     audio_input_stream = audio_instance.open(
         format=pyaudio.paFloat32,
         channels=1,
         rate=audio_config.in_rate,
         frames_per_buffer=audio_config.in_audio_chunk,
         input=True,
+        input_device_index=input_device_index,
     )
 
     audio_output_stream = audio_instance.open(
@@ -323,6 +342,7 @@ def main():
 
     index_input = 0
     index_output = 0
+    popped_list: List[Item] = []
     while True:
         # input audio
         in_data = audio_input_stream.read(audio_config.in_audio_chunk)
@@ -344,11 +364,10 @@ def main():
 
         # output
         wave: numpy.ndarray = None
-        popped_list: List[Item] = []
 
         while True:
             try:
-                while True:
+                while True:  # get all item in queue, for "cut in line"
                     item: Item = queue_output_wave.get_nowait()
                     popped_list.append(item)
             except queue.Empty:
@@ -362,7 +381,7 @@ def main():
             popped_list.remove(item)
 
             index_output += 1
-            if item.item is None:
+            if item.item is None:  # silence wave
                 continue
 
             wave = item.item if item.conversion_flag else item.original
