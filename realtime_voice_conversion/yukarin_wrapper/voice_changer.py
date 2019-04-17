@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple
+from typing import List, Dict, Iterable
 
 import numpy
 from become_yukarin import SuperResolution
@@ -12,6 +12,12 @@ class AcousticFeatureWrapper(AcousticFeature):
         super().__init__(*args, **kwargs)
         self.wave = wave
 
+    def __eq__(self, other: 'AcousticFeatureWrapper'):
+        return \
+            numpy.all(other.wave.wave == self.wave.wave) and \
+            other.wave.sampling_rate == self.wave.sampling_rate and \
+            numpy.all(other.f0 == self.f0)
+
     def astype_only_float_wrapper(self, dtype):
         return AcousticFeatureWrapper(
             wave=Wave(wave=self.wave.wave.astype(dtype), sampling_rate=self.wave.sampling_rate),
@@ -22,7 +28,7 @@ class AcousticFeatureWrapper(AcousticFeature):
     def silent_wrapper(
             length: int,
             sizes: Dict[str, int],
-            keys: Tuple[str],
+            keys: Iterable[str],
             frame_period: float,
             sampling_rate: int,
             wave_dtype,
@@ -34,13 +40,13 @@ class AcousticFeatureWrapper(AcousticFeature):
         )
 
     @staticmethod
-    def concatenate_wrapper(fs: List['AcousticFeatureWrapper'], keys: List[str]):
+    def concatenate_wrapper(fs: List['AcousticFeatureWrapper'], keys: Iterable[str]):
         return AcousticFeatureWrapper(
             wave=Wave(wave=numpy.concatenate([f.wave.wave for f in fs]), sampling_rate=fs[0].wave.sampling_rate),
             **AcousticFeatureWrapper.concatenate(fs, keys=keys).__dict__,
         )
 
-    def pick_wrapper(self, first: int, last: int, keys: List[str], frame_period: float):
+    def pick_wrapper(self, first: int, last: int, keys: Iterable[str], frame_period: float):
         first_wave = round(first * frame_period / 1000 * self.wave.sampling_rate)
         last_wave = round(last * frame_period / 1000 * self.wave.sampling_rate)
         return AcousticFeatureWrapper(

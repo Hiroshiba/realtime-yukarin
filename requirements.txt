@@ -1,0 +1,8 @@
+numpy
+librosa
+pynput
+PyAudio
+git+https://github.com/Hiroshiba/become-yukarin
+git+https://github.com/Hiroshiba/yukarin
+git+https://github.com/Hiroshiba/crepe
+tensorflow-gpu<1.13.0
