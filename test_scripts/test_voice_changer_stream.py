@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-from unittest import TestCase
 
 import librosa
 import numpy
@@ -10,6 +9,7 @@ from yukarin import AcousticConverter, Wave, AcousticFeature
 from yukarin.config import create_from_json as create_config
 from yukarin.f0_converter import F0Converter
 
+from realtime_voice_conversion.config import VocodeMode
 from realtime_voice_conversion.stream import EncodeStream, ConvertStream
 from realtime_voice_conversion.yukarin_wrapper.vocoder import Vocoder
 from realtime_voice_conversion.yukarin_wrapper.voice_changer import AcousticFeatureWrapper, VoiceChanger
@@ -75,6 +75,7 @@ class StreamHelper(object):
             self._vocoder = Vocoder(
                 acoustic_param=self.ac_config.dataset.acoustic_param,
                 out_sampling_rate=self.out_sampling_rate,
+                extract_f0_mode=VocodeMode.CREPE,
             )
         return self._vocoder
 

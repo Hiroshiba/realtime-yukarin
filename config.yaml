@@ -2,6 +2,7 @@ in_rate: 16000
 out_rate: 24000
 frame_period: 5
 buffer_time: 0.4
+extract_f0_mode: world
 vocoder_buffer_size: 1024
 in_norm: 0.125
 out_norm: 2.0

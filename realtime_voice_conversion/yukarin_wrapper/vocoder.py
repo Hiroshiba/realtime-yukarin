@@ -7,27 +7,45 @@ from yukarin.acoustic_feature import AcousticFeature
 from yukarin.param import AcousticParam
 from yukarin.wave import Wave
 
+from realtime_voice_conversion.config import VocodeMode
+from realtime_voice_conversion.yukarin_wrapper.acoustic_feature_wrapper import AcousticFeatureWrapper, \
+    CrepeAcousticFeatureWrapper
+
 
 class Vocoder(object):
     def __init__(
             self,
             acoustic_param: AcousticParam,
             out_sampling_rate: int,
+            extract_f0_mode: VocodeMode,
     ):
         self.acoustic_param = acoustic_param
         self.out_sampling_rate = out_sampling_rate
+        self.extract_f0_mode = extract_f0_mode
 
     def encode(self, wave: Wave):
-        return AcousticFeature.extract(
-            wave,
-            frame_period=self.acoustic_param.frame_period,
-            f0_floor=self.acoustic_param.f0_floor,
-            f0_ceil=self.acoustic_param.f0_ceil,
-            fft_length=self.acoustic_param.fft_length,
-            order=self.acoustic_param.order,
-            alpha=self.acoustic_param.alpha,
-            dtype=self.acoustic_param.dtype,
-        )
+        if self.extract_f0_mode == VocodeMode.WORLD:
+            return AcousticFeatureWrapper.extract(
+                wave,
+                frame_period=self.acoustic_param.frame_period,
+                f0_floor=self.acoustic_param.f0_floor,
+                f0_ceil=self.acoustic_param.f0_ceil,
+                fft_length=self.acoustic_param.fft_length,
+                order=self.acoustic_param.order,
+                alpha=self.acoustic_param.alpha,
+                dtype=self.acoustic_param.dtype,
+            )
+        elif self.extract_f0_mode == VocodeMode.CREPE:
+            return CrepeAcousticFeatureWrapper.extract(
+                wave,
+                frame_period=self.acoustic_param.frame_period,
+                f0_floor=self.acoustic_param.f0_floor,
+                f0_ceil=self.acoustic_param.f0_ceil,
+                fft_length=self.acoustic_param.fft_length,
+                order=self.acoustic_param.order,
+                alpha=self.acoustic_param.alpha,
+                dtype=self.acoustic_param.dtype,
+            )
 
     def decode(
             self,
@@ -45,15 +63,8 @@ class Vocoder(object):
 
 
 class RealtimeVocoder(Vocoder):
-    def __init__(
-            self,
-            acoustic_param: AcousticParam,
-            out_sampling_rate: int,
-    ):
-        super().__init__(
-            acoustic_param=acoustic_param,
-            out_sampling_rate=out_sampling_rate,
-        )
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self._synthesizer = None
         self._before_buffer: List[Tuple[Any, Any, Any]] = []  # for holding memory

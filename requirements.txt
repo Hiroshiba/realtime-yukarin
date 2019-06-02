@@ -1,8 +1,9 @@
+PyYAML
 numpy
-librosa
+librosa<7.0.0
 pynput
 PyAudio
-https://download.pytorch.org/whl/cu90/torch-1.0.1-cp36-cp36m-win_amd64.whl
+torch
 git+https://github.com/Hiroshiba/become-yukarin
 git+https://github.com/Hiroshiba/yukarin
 https://github.com/Hiroshiba/crepe/archive/pytorch.zip

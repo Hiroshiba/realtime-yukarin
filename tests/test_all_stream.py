@@ -11,6 +11,7 @@ from yukarin import AcousticConverter, Wave, AcousticFeature
 from yukarin.config import create_from_json as create_config
 from yukarin.f0_converter import F0Converter
 
+from realtime_voice_conversion.config import VocodeMode
 from realtime_voice_conversion.stream import EncodeStream, ConvertStream, DecodeStream
 from realtime_voice_conversion.stream.base_stream import BaseStream
 from realtime_voice_conversion.yukarin_wrapper.vocoder import Vocoder, RealtimeVocoder
@@ -74,37 +75,12 @@ class AllStreamTest(TestCase):
         return self._out_sampling_rate
 
     @property
-    def vocoder(self):
-        if self._vocoder is None:
-            self._vocoder = Vocoder(
-                acoustic_param=self.ac_config.dataset.acoustic_param,
-                out_sampling_rate=self.out_sampling_rate,
-            )
-
-            def _extract_f0(cls, x: numpy.ndarray, fs: int, frame_period: int, f0_floor: float, f0_ceil: float):
-                import crepe
-                t, f0, confidence, _ = crepe.predict(
-                    x,
-                    fs,
-                    viterbi=True,
-                    model_capacity='full',
-                    step_size=frame_period,
-                )
-                voiced = (crepe.predict_voicing(confidence) == 1) | (confidence > 0.1)
-                f0[~voiced] = 0
-
-                return f0, t
-
-            import types
-            AcousticFeature.extract_f0 = types.MethodType(_extract_f0, AcousticFeature)
-        return self._vocoder
-
-    @property
     def realtime_vocoder(self):
         if self._realtime_vocoder is None:
             self._realtime_vocoder = RealtimeVocoder(
                 acoustic_param=self.ac_config.dataset.acoustic_param,
                 out_sampling_rate=self.out_sampling_rate,
+                extract_f0_mode=VocodeMode.WORLD,
             )
             self._realtime_vocoder.create_synthesizer(
                 buffer_size=1024,
@@ -150,7 +126,7 @@ class AllStreamTest(TestCase):
     @property
     def encode_stream(self):
         if self._encode_stream is None:
-            self._encode_stream = EncodeStream(vocoder=self.vocoder)
+            self._encode_stream = EncodeStream(vocoder=self.realtime_vocoder)
         return self._encode_stream
 
     @property
@@ -172,13 +148,12 @@ class AllStreamTest(TestCase):
     def _load_wave_and_split(self, time_length: float = 1):
         rate = self.ac_config.dataset.acoustic_param.sampling_rate
         length = round(time_length * rate)
-        wave, _ = librosa.load(Path('data/audioA.wav'), sr=rate)
+        wave, _ = librosa.load(Path('tests/data/audioA.wav'), sr=rate)
         return [wave[i * length:(i + 1) * length] for i in range(len(wave) // length)]
 
     def _encode(self, w: numpy.ndarray):
         wave = Wave(wave=w, sampling_rate=self.in_rate)
-        feature = self.vocoder.encode(wave)
-        feature_wrapper = AcousticFeatureWrapper(wave=wave, **feature.__dict__)
+        feature_wrapper = self.realtime_vocoder.encode(wave)
         return feature_wrapper
 
     def _convert(self, feature_wrapper: AcousticFeatureWrapper):
@@ -283,9 +258,9 @@ class AllStreamTest(TestCase):
 
         streams = (encode_stream, convert_stream, decode_stream)
 
-        datas = _process_all_stream(streams, waves, _split_flags=(True, True, True), _extra_times=(0, 0, 0))
-        _concat_and_save(datas, '../test_all_split.wav')
-        _remove(streams)
+        # datas = _process_all_stream(streams, waves, _split_flags=(True, True, True), _extra_times=(0, 0, 0))
+        # _concat_and_save(datas, '../test_all_split.wav')
+        # _remove(streams)
         #
         # datas= _process_all_stream(streams, waves, _split_flags=(False, True, True), _extra_times=(0, 0, 0))
         # _concat_and_save(datas, '../test_encode_join.wav')
@@ -295,10 +270,10 @@ class AllStreamTest(TestCase):
         # _concat_and_save(datas, '../test_convert_join.wav')
         # _remove(streams)
         #
-        # datas = _process_all_stream(streams, waves, _split_flags=(True, True, True), _extra_times=(0, 1, 0))
-        # _concat_and_save(datas, '../test_convert_extra05.wav')
-        # _remove(streams)
-        #
+        datas = _process_all_stream(streams, waves, _split_flags=(True, True, True), _extra_times=(0, 1, 0))
+        _concat_and_save(datas, '../test_convert_extra05.wav')
+        _remove(streams)
+
         # datas = _process_all_stream(streams, waves, _split_flags=(True, True, False), _extra_times=(0, 0, 0))
         # _concat_and_save(datas, '../test_decode_join.wav')
         # _remove(streams)

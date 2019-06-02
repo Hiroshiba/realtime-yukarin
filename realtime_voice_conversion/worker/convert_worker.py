@@ -10,7 +10,7 @@ from yukarin import AcousticConverter
 from realtime_voice_conversion.stream import ConvertStream
 from realtime_voice_conversion.stream import StreamWrapper
 from realtime_voice_conversion.worker.utility import init_logger, Item
-from realtime_voice_conversion.yukarin_wrapper.voice_changer import AcousticFeatureWrapper
+from realtime_voice_conversion.yukarin_wrapper.acoustic_feature_wrapper import AcousticFeatureWrapper
 from realtime_voice_conversion.yukarin_wrapper.voice_changer import VoiceChanger
 
 

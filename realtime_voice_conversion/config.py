@@ -1,7 +1,13 @@
+from enum import Enum
 from pathlib import Path
 from typing import NamedTuple, Dict, Any
 
 import yaml
+
+
+class VocodeMode(Enum):
+    WORLD = 'world'
+    CREPE = 'crepe'
 
 
 class Config(NamedTuple):
@@ -9,6 +15,7 @@ class Config(NamedTuple):
     out_rate: int
     frame_period: float
     buffer_time: float
+    extract_f0_mode: VocodeMode
     vocoder_buffer_size: int
     in_norm: float
     out_norm: float
@@ -41,6 +48,7 @@ class Config(NamedTuple):
             out_rate=d['out_rate'],
             frame_period=d['frame_period'],
             buffer_time=d['buffer_time'],
+            extract_f0_mode=VocodeMode(d['extract_f0_mode']),
             vocoder_buffer_size=d['vocoder_buffer_size'],
             in_norm=d['in_norm'],
             out_norm=d['out_norm'],

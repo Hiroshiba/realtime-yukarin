@@ -33,9 +33,7 @@ class EncodeStream(BaseStream[numpy.ndarray, AcousticFeatureWrapper]):
             extra_time=extra_time,
         )
         wave = Wave(wave=wave, sampling_rate=self.in_segment_method.sampling_rate)
-        feature = self.vocoder.encode(wave)
-
-        feature_wrapper = AcousticFeatureWrapper(wave=wave, **feature.__dict__)
+        feature_wrapper = self.vocoder.encode(wave)
 
         pad = round(extra_time * self.out_segment_method.sampling_rate)
         if pad > 0:

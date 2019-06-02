@@ -41,6 +41,7 @@ def run(
     realtime_vocoder = RealtimeVocoder(
         acoustic_param=converter.acoustic_converter.config.dataset.acoustic_param,
         out_sampling_rate=config.out_rate,
+        extract_f0_mode=config.extract_f0_mode,
     )
 
     audio_instance = pyaudio.PyAudio()

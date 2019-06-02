@@ -5,3 +5,5 @@ mypy \
     realtime_voice_conversion \
     tests \
     --ignore-missing-imports \
+
+python -m unittest discover tests
