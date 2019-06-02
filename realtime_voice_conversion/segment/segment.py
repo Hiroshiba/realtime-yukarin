@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import NamedTuple, TypeVar, Generic, Iterable, GenericMeta, NamedTupleMeta
+from typing import TypeVar, Generic, Iterable
 
 T = TypeVar('T')
 
@@ -25,14 +25,22 @@ class BaseSegmentMethod(Generic[T]):
         raise NotImplementedError()
 
 
-class NamedTupleGenericMeta(NamedTupleMeta, GenericMeta):
-    pass
-
-
-class Segment(NamedTuple, Generic[T], metaclass=NamedTupleGenericMeta):
+class Segment(tuple, Generic[T]):
     start_time: float
     data: T
     method: BaseSegmentMethod[T]
+
+    def __new__(
+            cls,
+            start_time: float,
+            data: T,
+            method: BaseSegmentMethod[T],
+    ):
+        self = tuple.__new__(Segment, (start_time, data, method))
+        self.start_time = start_time
+        self.data = data
+        self.method = method
+        return self
 
     @property
     def sampling_rate(self) -> int:

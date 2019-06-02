@@ -6,7 +6,7 @@ class StreamWrapper(object):
         self.stream = stream
         self.extra_time = extra_time
 
-        self._current_time = 0
+        self._current_time = 0.
 
     def process_next(self, time_length: float):
         data = self.stream.process(

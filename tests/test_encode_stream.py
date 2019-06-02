@@ -5,7 +5,7 @@ import numpy
 from realtime_voice_conversion.yukarin_wrapper.vocoder import Vocoder
 from yukarin.param import AcousticParam
 
-from realtime_voice_conversion.segment.base_segment import BaseSegmentMethod
+from realtime_voice_conversion.segment.segment import BaseSegmentMethod
 from realtime_voice_conversion.stream import EncodeStream
 from realtime_voice_conversion.stream.base_stream import BaseStream
 

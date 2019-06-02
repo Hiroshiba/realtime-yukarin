@@ -1,40 +1,41 @@
 import logging
 import time
 from multiprocessing import Queue
+from multiprocessing.synchronize import Lock
 
 import librosa
 import numpy
 from yukarin.acoustic_feature import AcousticFeature
-from yukarin.config import Config
 
 from realtime_voice_conversion.stream import DecodeStream
 from realtime_voice_conversion.stream import StreamWrapper
-from realtime_voice_conversion.worker.utility import init_logger, Item, AudioConfig
+from realtime_voice_conversion.worker.utility import init_logger, Item
 from realtime_voice_conversion.yukarin_wrapper.vocoder import RealtimeVocoder
 
 
 def decode_worker(
-        config: Config,
-        audio_config: AudioConfig,
+        realtime_vocoder: RealtimeVocoder,
         time_length: float,
         extra_time: float,
+        vocoder_buffer_size: int,
+        out_audio_chunk: int,
+        silent_threshold: float,
         queue_input: Queue,
         queue_output: Queue,
+        acquired_lock: Lock,
 ):
     logger = logging.getLogger('decode')
     init_logger(logger)
     logging.info('decode worker')
 
-    stream = DecodeStream(
-        vocoder=RealtimeVocoder(
-            acoustic_param=config.dataset.acoustic_param,
-            out_sampling_rate=audio_config.out_rate,
-            buffer_size=audio_config.vocoder_buffer_size,
-            number_of_pointers=16,
-        )
+    realtime_vocoder.create_synthesizer(
+        buffer_size=vocoder_buffer_size,
+        number_of_pointers=16,
     )
+    stream = DecodeStream(vocoder=realtime_vocoder)
     stream_wrapper = StreamWrapper(stream=stream, extra_time=extra_time)
 
+    acquired_lock.release()
     start_time = extra_time
     wave_fragment = numpy.empty(0)
     while True:
@@ -50,12 +51,11 @@ def decode_worker(
         wave = stream_wrapper.process_next(time_length=time_length)
 
         wave_fragment = numpy.concatenate([wave_fragment, wave])
-        if len(wave_fragment) >= audio_config.out_audio_chunk:
-            wave, wave_fragment = \
-                wave_fragment[:audio_config.out_audio_chunk], wave_fragment[audio_config.out_audio_chunk:]
+        if len(wave_fragment) >= out_audio_chunk:
+            wave, wave_fragment = wave_fragment[:out_audio_chunk], wave_fragment[out_audio_chunk:]
 
             power = librosa.core.power_to_db(numpy.abs(librosa.stft(wave)) ** 2).mean()
-            if power < audio_config.silent_threshold:
+            if power < silent_threshold:
                 wave = None  # pass
         else:
             wave = None

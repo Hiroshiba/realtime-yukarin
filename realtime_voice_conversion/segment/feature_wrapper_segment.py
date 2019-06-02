@@ -3,7 +3,7 @@ from typing import Iterable, List
 import numpy
 from yukarin.acoustic_feature import AcousticFeature
 
-from ..segment.base_segment import BaseSegmentMethod
+from ..segment.segment import BaseSegmentMethod
 from ..yukarin_wrapper.voice_changer import AcousticFeatureWrapper
 
 

@@ -12,7 +12,9 @@ class AcousticFeatureWrapper(AcousticFeature):
         super().__init__(*args, **kwargs)
         self.wave = wave
 
-    def __eq__(self, other: 'AcousticFeatureWrapper'):
+    def __eq__(self, other):
+        if not isinstance(other, AcousticFeatureWrapper):
+            return NotImplemented
         return \
             numpy.all(other.wave.wave == self.wave.wave) and \
             other.wave.sampling_rate == self.wave.sampling_rate and \

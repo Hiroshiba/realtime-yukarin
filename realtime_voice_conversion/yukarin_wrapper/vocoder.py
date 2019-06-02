@@ -1,3 +1,5 @@
+from typing import Any, Tuple, List
+
 import numpy
 import pyworld
 from world4py.native import structures, apidefinitions, utils
@@ -47,31 +49,38 @@ class RealtimeVocoder(Vocoder):
             self,
             acoustic_param: AcousticParam,
             out_sampling_rate: int,
-            buffer_size: int,
-            number_of_pointers: int,
     ):
         super().__init__(
             acoustic_param=acoustic_param,
             out_sampling_rate=out_sampling_rate,
         )
 
-        self.buffer_size = buffer_size
+        self._synthesizer = None
+        self._before_buffer: List[Tuple[Any, Any, Any]] = []  # for holding memory
+
+    def create_synthesizer(
+            self,
+            buffer_size: int,
+            number_of_pointers: int,
+    ):
+        assert self._synthesizer is None
 
         self._synthesizer = structures.WorldSynthesizer()
         apidefinitions._InitializeSynthesizer(
             self.out_sampling_rate,  # sampling rate
             self.acoustic_param.frame_period,  # frame period
-            pyworld.get_cheaptrick_fft_size(out_sampling_rate),  # fft size
+            pyworld.get_cheaptrick_fft_size(self.out_sampling_rate),  # fft size
             buffer_size,  # buffer size
             number_of_pointers,  # number of pointers
             self._synthesizer,
         )
-        self._before_buffer = []  # for holding memory
 
     def decode(
             self,
             acoustic_feature: AcousticFeature,
     ):
+        assert self._synthesizer is not None
+
         length = len(acoustic_feature.f0)
         f0_buffer = utils.cast_1d_list_to_1d_pointer(acoustic_feature.f0.flatten().tolist())
         sp_buffer = utils.cast_2d_list_to_2d_pointer(acoustic_feature.sp.tolist())
@@ -80,7 +89,7 @@ class RealtimeVocoder(Vocoder):
 
         ys = []
         while apidefinitions._Synthesis2(self._synthesizer) != 0:
-            y = numpy.array([self._synthesizer.buffer[i] for i in range(self.buffer_size)])
+            y = numpy.array([self._synthesizer.buffer[i] for i in range(self._synthesizer.buffer_size)])
             ys.append(y)
 
         if len(ys) > 0:

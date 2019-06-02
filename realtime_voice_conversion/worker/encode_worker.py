@@ -1,36 +1,31 @@
 import logging
 import time
 from multiprocessing import Queue
+from multiprocessing.synchronize import Lock
 
 import numpy
 from yukarin import AcousticFeature
-from yukarin.config import Config
 
 from realtime_voice_conversion.stream import EncodeStream
 from realtime_voice_conversion.stream import StreamWrapper
-from realtime_voice_conversion.worker.utility import init_logger, Item, AudioConfig
-from realtime_voice_conversion.yukarin_wrapper.vocoder import Vocoder
+from realtime_voice_conversion.worker.utility import init_logger, Item
+from realtime_voice_conversion.yukarin_wrapper.vocoder import RealtimeVocoder
 from realtime_voice_conversion.yukarin_wrapper.voice_changer import AcousticFeatureWrapper
 
 
 def encode_worker(
-        config: Config,
-        audio_config: AudioConfig,
+        realtime_vocoder: RealtimeVocoder,
         time_length: float,
         extra_time: float,
         queue_input: Queue,
         queue_output: Queue,
+        acquired_lock: Lock,
 ):
     logger = logging.getLogger('encode')
     init_logger(logger)
     logger.info('encode worker')
 
-    stream = EncodeStream(
-        vocoder=Vocoder(
-            acoustic_param=config.dataset.acoustic_param,
-            out_sampling_rate=audio_config.out_rate,
-        ),
-    )
+    stream = EncodeStream(vocoder=realtime_vocoder)
     stream_wrapper = StreamWrapper(stream=stream, extra_time=extra_time)
 
     def _extract_f0(cls, x: numpy.ndarray, fs: int, frame_period: int, f0_floor: float, f0_ceil: float):
@@ -51,6 +46,7 @@ def encode_worker(
     import types
     AcousticFeature.extract_f0 = types.MethodType(_extract_f0, AcousticFeature)
 
+    acquired_lock.release()
     start_time = extra_time
     while True:
         item: Item = queue_input.get()

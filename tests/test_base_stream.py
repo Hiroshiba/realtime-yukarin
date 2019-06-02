@@ -1,7 +1,7 @@
 from typing import Iterable
 from unittest import TestCase
 
-from realtime_voice_conversion.segment.base_segment import BaseSegmentMethod
+from realtime_voice_conversion.segment.segment import BaseSegmentMethod
 from realtime_voice_conversion.stream.base_stream import BaseStream
 
 

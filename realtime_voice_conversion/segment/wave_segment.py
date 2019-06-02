@@ -2,7 +2,7 @@ from typing import Iterable
 
 import numpy
 
-from ..segment.base_segment import BaseSegmentMethod
+from ..segment.segment import BaseSegmentMethod
 
 
 class WaveSegmentMethod(BaseSegmentMethod[numpy.ndarray]):

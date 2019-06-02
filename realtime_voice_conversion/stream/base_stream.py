@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import List, TypeVar, Generic
 
-from realtime_voice_conversion.segment.base_segment import BaseSegmentMethod, Segment
+from realtime_voice_conversion.segment.segment import BaseSegmentMethod, Segment
 
 T_IN = TypeVar('T_IN')
 T_OUT = TypeVar('T_OUT')

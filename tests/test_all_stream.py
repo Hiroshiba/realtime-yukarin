@@ -113,6 +113,8 @@ class AllStreamTest(TestCase):
             self._realtime_vocoder = RealtimeVocoder(
                 acoustic_param=self.ac_config.dataset.acoustic_param,
                 out_sampling_rate=self.out_sampling_rate,
+            )
+            self._realtime_vocoder.create_synthesizer(
                 buffer_size=1024,
                 number_of_pointers=16,
             )
@@ -296,15 +298,15 @@ class AllStreamTest(TestCase):
         # datas= _process_all_stream(streams, waves, _split_flags=(False, True, True), _extra_times=(0, 0, 0))
         # _concat_and_save(datas, '../test_encode_join.wav')
         # _remove(streams)
-
-        datas = _process_all_stream(streams, waves, _split_flags=(True, False, True), _extra_times=(0, 0, 0))
-        _concat_and_save(datas, '../test_convert_join.wav')
-        _remove(streams)
-
-        datas = _process_all_stream(streams, waves, _split_flags=(True, True, True), _extra_times=(0, 1, 0))
-        _concat_and_save(datas, '../test_convert_extra05.wav')
-        _remove(streams)
-
+        #
+        # datas = _process_all_stream(streams, waves, _split_flags=(True, False, True), _extra_times=(0, 0, 0))
+        # _concat_and_save(datas, '../test_convert_join.wav')
+        # _remove(streams)
+        #
+        # datas = _process_all_stream(streams, waves, _split_flags=(True, True, True), _extra_times=(0, 1, 0))
+        # _concat_and_save(datas, '../test_convert_extra05.wav')
+        # _remove(streams)
+        #
         # datas = _process_all_stream(streams, waves, _split_flags=(True, True, False), _extra_times=(0, 0, 0))
         # _concat_and_save(datas, '../test_decode_join.wav')
         # _remove(streams)
