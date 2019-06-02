@@ -81,14 +81,6 @@ class AllStreamTest(TestCase):
                 out_sampling_rate=self.out_sampling_rate,
             )
 
-            import tensorflow as tf
-            from keras import backend as K
-
-            config = tf.ConfigProto()
-            config.gpu_options.allow_growth = True
-            sess = tf.Session(config=config)
-            K.set_session(sess)
-
             def _extract_f0(cls, x: numpy.ndarray, fs: int, frame_period: int, f0_floor: float, f0_ceil: float):
                 import crepe
                 t, f0, confidence, _ = crepe.predict(
