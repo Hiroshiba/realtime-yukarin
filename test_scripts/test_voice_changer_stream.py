@@ -23,21 +23,21 @@ class StreamHelper(object):
     def __init__(self):
         self.input_statistics_path = os.getenv('INPUT_STATISTICS')
         self.target_statistics_path = os.getenv('TARGET_STATISTICS')
-        self.acoustic_convert_model_path = os.getenv('ACOUSTIC_CONVERT_MODEL')
-        self.acoustic_convert_config_path = os.getenv('ACOUSTIC_CONVERT_CONFIG')
-        self.super_resolution_model_path = os.getenv('SUPER_RESOLUTION_MODEL')
-        self.super_resolution_config_path = os.getenv('SUPER_RESOLUTION_CONFIG')
+        self.stage1_model_path = os.getenv('ACOUSTIC_CONVERT_MODEL')
+        self.stage1_config_path = os.getenv('ACOUSTIC_CONVERT_CONFIG')
+        self.stage2_model_path = os.getenv('SUPER_RESOLUTION_MODEL')
+        self.stage2_config_path = os.getenv('SUPER_RESOLUTION_CONFIG')
 
         if self.input_statistics_path is None: raise ValueError('INPUT_STATISTICS is not found.')
         if self.target_statistics_path is None: raise ValueError('TARGET_STATISTICS is not found.')
-        if self.acoustic_convert_model_path is None: raise ValueError('ACOUSTIC_CONVERT_MODEL is not found.')
-        if self.acoustic_convert_config_path is None: raise ValueError('ACOUSTIC_CONVERT_CONFIG is not found.')
-        if self.super_resolution_model_path is None: raise ValueError('SUPER_RESOLUTION_MODEL is not found.')
-        if self.super_resolution_config_path is None: raise ValueError('SUPER_RESOLUTION_CONFIG is not found.')
+        if self.stage1_model_path is None: raise ValueError('ACOUSTIC_CONVERT_MODEL is not found.')
+        if self.stage1_config_path is None: raise ValueError('ACOUSTIC_CONVERT_CONFIG is not found.')
+        if self.stage2_model_path is None: raise ValueError('SUPER_RESOLUTION_MODEL is not found.')
+        if self.stage2_config_path is None: raise ValueError('SUPER_RESOLUTION_CONFIG is not found.')
 
         self._ac_config = None
         self._sr_config = None
-        self._in_rate = None
+        self._input_rate = None
         self._out_sampling_rate = None
         self._vocoder = None
         self._models = None
@@ -48,20 +48,20 @@ class StreamHelper(object):
     @property
     def ac_config(self):
         if self._ac_config is None:
-            self._ac_config = create_config(self.acoustic_convert_config_path)
+            self._ac_config = create_config(self.stage1_config_path)
         return self._ac_config
 
     @property
     def sr_config(self):
         if self._sr_config is None:
-            self._sr_config = create_sr_config(self.super_resolution_config_path)
+            self._sr_config = create_sr_config(self.stage2_config_path)
         return self._sr_config
 
     @property
-    def in_rate(self):
-        if self._in_rate is None:
-            self._in_rate = self.ac_config.dataset.acoustic_param.sampling_rate
-        return self._in_rate
+    def input_rate(self):
+        if self._input_rate is None:
+            self._input_rate = self.ac_config.dataset.acoustic_param.sampling_rate
+        return self._input_rate
 
     @property
     def out_sampling_rate(self):
@@ -92,13 +92,13 @@ class StreamHelper(object):
 
             acoustic_converter = AcousticConverter(
                 ac_config,
-                self.acoustic_convert_model_path,
+                self.stage1_model_path,
                 f0_converter=f0_converter,
                 out_sampling_rate=self.out_sampling_rate,
             )
             super_resolution = SuperResolution(
                 sr_config,
-                self.super_resolution_model_path,
+                self.stage2_model_path,
             )
             self._models = acoustic_converter, super_resolution
         return self._models
@@ -135,7 +135,7 @@ class StreamHelper(object):
         return [wave[i * length:(i + 1) * length] for i in range(len(wave) // length)]
 
     def _encode(self, w: numpy.ndarray):
-        wave = Wave(wave=w, sampling_rate=self.in_rate)
+        wave = Wave(wave=w, sampling_rate=self.input_rate)
         feature = self.vocoder.encode(wave)
         feature_wrapper = AcousticFeatureWrapper(wave=wave, **feature.__dict__)
         return feature_wrapper
@@ -171,16 +171,16 @@ class StreamHelper(object):
         # concat
         output = encode_stream.process(start_time=0.3, time_length=1, extra_time=0)
         target = self._encode(numpy.concatenate([
-            waves[0][self.in_rate * 3 // 10:],
-            waves[1][:self.in_rate * 3 // 10],
+            waves[0][self.input_rate * 3 // 10:],
+            waves[1][:self.input_rate * 3 // 10],
         ]))
         self.assertEqual(output, target)
 
         # pad
         output = encode_stream.process(start_time=1.3, time_length=1, extra_time=0)
         target = self._encode(numpy.concatenate([
-            waves[1][self.in_rate * 3 // 10:],
-            numpy.zeros(self.in_rate * 3 // 10),
+            waves[1][self.input_rate * 3 // 10:],
+            numpy.zeros(self.input_rate * 3 // 10),
         ]))
         self.assertEqual(output, target)
 
@@ -199,8 +199,8 @@ class StreamHelper(object):
         # concat
         output = convert_stream.process(start_time=0.3, time_length=1, extra_time=0)
         target = self._convert(self._encode(numpy.concatenate([
-            waves[0][self.in_rate * 3 // 10:],
-            waves[1][:self.in_rate * 3 // 10],
+            waves[0][self.input_rate * 3 // 10:],
+            waves[1][:self.input_rate * 3 // 10],
         ])))
         print(output.f0[:5], output.f0[-5:])
         print(target.f0[:5], target.f0[-5:])

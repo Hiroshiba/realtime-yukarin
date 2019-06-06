@@ -3,7 +3,9 @@ numpy
 librosa<7.0.0
 pynput
 PyAudio
-torch
+world4py
 git+https://github.com/Hiroshiba/become-yukarin
 git+https://github.com/Hiroshiba/yukarin
-https://github.com/Hiroshiba/crepe/archive/pytorch.zip
+
+# if you want to use CREPE
+# https://github.com/Hiroshiba/crepe/archive/pytorch.zip

@@ -19,28 +19,27 @@ from realtime_voice_conversion.yukarin_wrapper.vocoder import RealtimeVocoder
 
 
 def run(
-        input_device_name: str,
-        output_device_name: str,
+        config_path: Path,
 ):
     logger = logging.getLogger('root')
     init_logger(logger)
 
     logger.info('model loading...')
 
-    config = Config.from_yaml(Path('config.yaml'))
+    config = Config.from_yaml(config_path)
 
     converter = YukarinConverter.make_yukarin_converter(
-        f0_converter_input_statistics_path=config.f0_converter_input_statistics_path,
-        f0_converter_target_statistics_path=config.f0_converter_target_statistics_path,
-        acoustic_converter_config_path=config.acoustic_converter_config_path,
-        acoustic_converter_model_path=config.acoustic_converter_model_path,
-        super_resolution_config_path=config.super_resolution_config_path,
-        super_resolution_model_path=config.super_resolution_model_path,
+        input_statistics_path=config.input_statistics_path,
+        target_statistics_path=config.target_statistics_path,
+        stage1_model_path=config.stage1_model_path,
+        stage1_config_path=config.stage1_config_path,
+        stage2_model_path=config.stage2_model_path,
+        stage2_config_path=config.stage2_config_path,
     )
 
     realtime_vocoder = RealtimeVocoder(
         acoustic_param=converter.acoustic_converter.config.dataset.acoustic_param,
-        out_sampling_rate=config.out_rate,
+        out_sampling_rate=config.output_rate,
         extract_f0_mode=config.extract_f0_mode,
     )
 
@@ -86,7 +85,7 @@ def run(
         extra_time=config.decode_extra_time,
         vocoder_buffer_size=config.vocoder_buffer_size,
         out_audio_chunk=config.out_audio_chunk,
-        silent_threshold=config.silent_threshold,
+        output_silent_threshold=config.output_silent_threshold,
         queue_input=queue_output_feature,
         queue_output=queue_output_wave,
         acquired_lock=lock_decoder,
@@ -97,26 +96,24 @@ def run(
         pass  # wait
 
     # input device
-    name = input_device_name
-    if name is None:
+    if config.input_device_name is None:
         input_device_index = audio_instance.get_default_input_device_info()['index']
 
     else:
         for i in range(audio_instance.get_device_count()):
-            if name in str(audio_instance.get_device_info_by_index(i)['name']):
+            if config.input_device_name in str(audio_instance.get_device_info_by_index(i)['name']):
                 input_device_index = i
                 break
         else:
             raise ValueError('input device not found')
 
     # output device
-    name = output_device_name
-    if name is None:
+    if config.output_device_name is None:
         output_device_index = audio_instance.get_default_output_device_info()['index']
 
     else:
         for i in range(audio_instance.get_device_count()):
-            if name in str(audio_instance.get_device_info_by_index(i)['name']):
+            if config.output_device_name in str(audio_instance.get_device_info_by_index(i)['name']):
                 output_device_index = i
                 break
         else:
@@ -126,7 +123,7 @@ def run(
     audio_input_stream = audio_instance.open(
         format=pyaudio.paFloat32,
         channels=1,
-        rate=config.in_rate,
+        rate=config.input_rate,
         frames_per_buffer=config.in_audio_chunk,
         input=True,
         input_device_index=input_device_index,
@@ -135,7 +132,7 @@ def run(
     audio_output_stream = audio_instance.open(
         format=pyaudio.paFloat32,
         channels=1,
-        rate=config.out_rate,
+        rate=config.output_rate,
         frames_per_buffer=config.out_audio_chunk,
         output=True,
         output_device_index=output_device_index,
@@ -158,7 +155,7 @@ def run(
     while True:
         # input audio
         in_data = audio_input_stream.read(config.in_audio_chunk)
-        in_wave = numpy.frombuffer(in_data, dtype=numpy.float32) * config.in_norm
+        in_wave = numpy.frombuffer(in_data, dtype=numpy.float32) * config.input_scale
 
         in_item = Item(
             item=in_wave,
@@ -196,7 +193,7 @@ def run(
 
         if out_wave is None:
             out_wave = numpy.zeros(config.out_audio_chunk)
-        out_wave *= config.out_norm
+        out_wave *= config.output_scale
 
         b = out_wave[:config.out_audio_chunk].astype(numpy.float32).tobytes()
         audio_output_stream.write(b)
@@ -204,11 +201,9 @@ def run(
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input_device_name', '-idn')
-    parser.add_argument('--output_device_name', '-odn')
+    parser.add_argument('--config_path', type=Path, default=Path('./config.yaml'))
     args = parser.parse_args()
 
     run(
-        input_device_name=args.input_device_name,
-        output_device_name=args.output_device_name,
+        config_path=args.config_path,
     )

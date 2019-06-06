@@ -21,36 +21,36 @@ class YukarinConverter(object):
 
     @staticmethod
     def make_yukarin_converter(
-            f0_converter_input_statistics_path: Path,
-            f0_converter_target_statistics_path: Path,
-            acoustic_converter_config_path: Path,
-            acoustic_converter_model_path: Path,
-            super_resolution_config_path: Path,
-            super_resolution_model_path: Path,
+            input_statistics_path: Path,
+            target_statistics_path: Path,
+            stage1_model_path: Path,
+            stage1_config_path: Path,
+            stage2_model_path: Path,
+            stage2_config_path: Path,
     ):
         logger = logging.getLogger('encode')
         init_logger(logger)
         logger.info('make_yukarin_converter')
 
         f0_converter = F0Converter(
-            input_statistics=f0_converter_input_statistics_path,
-            target_statistics=f0_converter_target_statistics_path,
+            input_statistics=input_statistics_path,
+            target_statistics=target_statistics_path,
         )
 
-        config = create_config(acoustic_converter_config_path)
+        config = create_config(stage1_config_path)
         acoustic_converter = AcousticConverter(
             config=config,
-            model_path=acoustic_converter_model_path,
+            model_path=stage1_model_path,
             gpu=0,
             f0_converter=f0_converter,
             out_sampling_rate=24000,
         )
         logger.info('model 1 loaded!')
 
-        sr_config = create_sr_config(super_resolution_config_path)
+        sr_config = create_sr_config(stage2_config_path)
         super_resolution = SuperResolution(
             config=sr_config,
-            model_path=super_resolution_model_path,
+            model_path=stage2_model_path,
             gpu=0,
         )
         logger.info('model 2 loaded!')

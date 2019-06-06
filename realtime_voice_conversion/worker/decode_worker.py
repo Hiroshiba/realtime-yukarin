@@ -19,7 +19,7 @@ def decode_worker(
         extra_time: float,
         vocoder_buffer_size: int,
         out_audio_chunk: int,
-        silent_threshold: float,
+        output_silent_threshold: float,
         queue_input: Queue,
         queue_output: Queue,
         acquired_lock: Lock,
@@ -55,7 +55,7 @@ def decode_worker(
             wave, wave_fragment = wave_fragment[:out_audio_chunk], wave_fragment[out_audio_chunk:]
 
             power = librosa.core.power_to_db(numpy.abs(librosa.stft(wave)) ** 2).mean()
-            if power < silent_threshold:
+            if power < - output_silent_threshold:
                 wave = None  # pass
         else:
             wave = None
