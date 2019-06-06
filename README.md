@@ -47,7 +47,7 @@ python check.py \
 
 ```
 
-動かない場合は[GithubのIssue](./issue/)で質問することができます。
+動かない場合は[GithubのIssue](https://github.com/Hiroshiba/realtime-yukarin/issues)で質問することができます。
 
 ## 実行
 リアルタイム声質変換を実行するには、設定ファイル`config.yaml`を作成し、`./run.py`を実行します。
