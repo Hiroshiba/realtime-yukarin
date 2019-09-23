@@ -64,7 +64,7 @@ on [Github Issue](https://github.com/Hiroshiba/realtime-yukarin/issues).
 To perform real-time voice conversion, create a config file `config.yaml` and run `./run.py`.
 
 ```bash
-python run.py ./config.yml
+python run.py ./config.yaml
 ```
 
 ### Description of config file
