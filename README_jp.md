@@ -62,7 +62,7 @@ python check.py \
 リアルタイム声質変換を実行するには、設定ファイル`config.yaml`を作成し、`./run.py`を実行します。
 
 ```bash
-python run.py ./config.yml
+python run.py ./config.yaml
 ```
 
 ### 設定ファイルの説明
