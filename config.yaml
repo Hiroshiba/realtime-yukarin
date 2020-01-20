@@ -14,9 +14,9 @@ encode_extra_time: 0.0
 convert_extra_time: 0.5
 decode_extra_time: 0.0
 
-input_statistics_path: './sample/model_stage1/predictor.npz'
-target_statistics_path: './sample/model_stage1/config.json'
-stage1_model_path: './sample/model_stage2/predictor.npz'
-stage1_config_path: './sample/model_stage2/config.json'
-stage2_model_path: './sample/input_statistics.npy'
-stage2_config_path: './sample/tareget_statistics.npy'
+input_statistics_path: './sample/input_statistics.npy'
+target_statistics_path: './sample/target_statistics.npy'
+stage1_model_path: './sample/model_stage1/predictor.npz'
+stage1_config_path: './sample/model_stage1/config.json'
+stage2_model_path: './sample/model_stage2/predictor.npz'
+stage2_config_path: './sample/model_stage2/config.json'

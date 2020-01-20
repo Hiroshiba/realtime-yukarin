@@ -33,7 +33,7 @@ Here, each filename is as follows:
 |  Content  |  Filename  |
 | ---- | ---- |
 |  Frequency statistics for input voice  |  `./sample/input_statistics.npy`  |
-|  Frequency statistics for target voice  |  `./sample/tareget_statistics.npy`  |
+|  Frequency statistics for target voice  |  `./sample/target_statistics.npy`  |
 |  First stage model from [Yukarin](https://github.com/Hiroshiba/yukarin)  |  `./sample/model_stage1/predictor.npz`  |
 |  First stage's config file  |  `./sample/model_stage1/config.json`  |
 |  Second stage model from [Become Yukarin](https://github.com/Hiroshiba/become-yukarin) |  `./sample/model_stage2/predictor.npz`  |
@@ -48,12 +48,12 @@ python check.py \
     --input_path 'input.wav' \
     --input_time_length 5 \
     --output_path 'output.wav' \
-    --input_statistics_path './sample/model_stage1/predictor.npz' \
-    --target_statistics_path './sample/model_stage1/config.json' \
-    --stage1_model_path './sample/model_stage2/predictor.npz' \
-    --stage1_config_path './sample/model_stage2/config.json' \
-    --stage2_model_path './sample/input_statistics.npy' \
-    --stage2_config_path './sample/tareget_statistics.npy' \
+    --input_statistics_path './sample/input_statistics.npy' \
+    --target_statistics_path './sample/target_statistics.npy' \
+    --stage1_model_path './sample/model_stage1/predictor.npz' \
+    --stage1_config_path './sample/model_stage1/config.json' \
+    --stage2_model_path './sample/model_stage2/predictor.npz' \
+    --stage2_config_path './sample/model_stage2/config.json' \
 
 ```
 

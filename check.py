@@ -132,12 +132,12 @@ if __name__ == '__main__':
     parser.add_argument('--input_path', type=Path)
     parser.add_argument('--input_time_length', type=int)
     parser.add_argument('--output_path', type=Path, default=Path('output.wav'))
-    parser.add_argument('--input_statistics_path', type=Path, default=Path('./sample/model_stage1/predictor.npz'))
-    parser.add_argument('--target_statistics_path', type=Path, default=Path('./sample/model_stage1/config.json'))
-    parser.add_argument('--stage1_model_path', type=Path, default=Path('./sample/model_stage2/predictor.npz'))
-    parser.add_argument('--stage1_config_path', type=Path, default=Path('./sample/model_stage2/config.json'))
-    parser.add_argument('--stage2_model_path', type=Path, default=Path('./sample/input_statistics.npy'))
-    parser.add_argument('--stage2_config_path', type=Path, default=Path('./sample/tareget_statistics.npy'))
+    parser.add_argument('--input_statistics_path', type=Path, default=Path('./sample/input_statistics.npy'))
+    parser.add_argument('--target_statistics_path', type=Path, default=Path('./sample/target_statistics.npy'))
+    parser.add_argument('--stage1_model_path', type=Path, default=Path('./sample/model_stage1/predictor.npz'))
+    parser.add_argument('--stage1_config_path', type=Path, default=Path('./sample/model_stage1/config.json'))
+    parser.add_argument('--stage2_model_path', type=Path, default=Path('./sample/model_stage2/predictor.npz'))
+    parser.add_argument('--stage2_config_path', type=Path, default=Path('./sample/model_stage2/config.json'))
     args = parser.parse_args()
 
     check(
