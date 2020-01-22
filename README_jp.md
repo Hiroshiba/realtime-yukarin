@@ -32,7 +32,7 @@ pip install -r requirements.txt
 |  説明  |  ファイル名  |
 | ---- | ---- |
 |  入力音声の周波数の統計量のファイル  |  `./sample/input_statistics.npy`  |
-|  目標音声の周波数の統計量のファイル  |  `./sample/tareget_statistics.npy`  |
+|  目標音声の周波数の統計量のファイル  |  `./sample/target_statistics.npy`  |
 |  [Yukarin](https://github.com/Hiroshiba/yukarin)製の第１段階モデル  |  `./sample/model_stage1/predictor.npz`  |
 |  第１段階モデルの設定ファイル  |  `./sample/model_stage1/config.json`  |
 |  [Become Yukarin](https://github.com/Hiroshiba/become-yukarin)製の第２段階モデル  |  `./sample/model_stage2/predictor.npz`  |
@@ -47,12 +47,12 @@ python check.py \
     --input_path 'input.wav' \
     --input_time_length 5 \
     --output_path 'output.wav' \
-    --input_statistics_path './sample/model_stage1/predictor.npz' \
-    --target_statistics_path './sample/model_stage1/config.json' \
-    --stage1_model_path './sample/model_stage2/predictor.npz' \
-    --stage1_config_path './sample/model_stage2/config.json' \
-    --stage2_model_path './sample/input_statistics.npy' \
-    --stage2_config_path './sample/tareget_statistics.npy' \
+    --input_statistics_path './sample/input_statistics.npy' \
+    --target_statistics_path './sample/target_statistics.npy' \
+    --stage1_model_path './sample/model_stage1/predictor.npz' \
+    --stage1_config_path './sample/model_stage1/config.json' \
+    --stage2_model_path './sample/model_stage2/predictor.npz' \
+    --stage2_config_path './sample/model_stage2/config.json' \
 
 ```
 
